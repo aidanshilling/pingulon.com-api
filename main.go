@@ -67,7 +67,12 @@ func main() {
 
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		articleJson, err := getArticle(mongoClient, "Bunion", "other")
+		return c.String(http.StatusOK, "Please search for an article with format /:collection/:name")
+	})
+	e.GET("/:collection/:name", func(c echo.Context) error {
+		collection := c.Param("collection")
+		name := c.Param("name")
+		articleJson, err := getArticle(mongoClient, name, collection)
 		if err != nil {
 			return c.String(http.StatusBadRequest, "Failed to fetch article")
 		}
