@@ -15,7 +15,13 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
+
+type Article struct {
+	ID   bson.ObjectID `bson:"_id" json:"id"`
+	Name string        `bson:"name" json:"name"`
+}
 
 func obtainMongoClient() (*mongo.Client, error) {
 	godotenv.Load()
@@ -54,6 +60,26 @@ func getArticle(client *mongo.Client, name string, collection string) (json.RawM
 	return jsonData, nil
 }
 
+func getArticleList(client *mongo.Client, collection string) ([]Article, error) {
+	ctx := context.TODO()
+	coll := client.Database("articles").Collection(collection)
+	projection := bson.D{{Key: "_id", Value: 1}, {Key: "name", Value: 1}}
+	opts := options.Find().SetProjection(projection)
+
+	cursor, err := coll.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var articles []Article
+	if err := cursor.All(ctx, &articles); err != nil {
+		return nil, err
+	}
+
+	return articles, nil
+}
+
 func main() {
 	mongoClient, err := obtainMongoClient()
 	if err != nil {
@@ -66,8 +92,22 @@ func main() {
 	}()
 
 	e := echo.New()
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"http://localhost:5173"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+	}))
+
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Please search for an article with format /:collection/:name")
+	})
+	e.GET("/:collection", func(c echo.Context) error {
+		collection := c.Param("collection")
+		articles, err := getArticleList(mongoClient, collection)
+		if err != nil {
+			return c.String(http.StatusBadRequest, "Failed to fetch collection\n")
+		}
+		return c.JSON(http.StatusOK, articles)
+
 	})
 	e.GET("/:collection/:name", func(c echo.Context) error {
 		collection := c.Param("collection")
