@@ -33,7 +33,6 @@ func obtainMongoClient() (*mongo.Client, error) {
 
 	client, err := mongo.Connect(options.Client().ApplyURI(uri))
 	if err != nil {
-		// TODO: Remove these panic's
 		return nil, err
 	}
 	return client, nil
@@ -114,7 +113,7 @@ func main() {
 		name := c.Param("name")
 		articleJson, err := getArticle(mongoClient, name, collection)
 		if err != nil {
-			return c.String(http.StatusBadRequest, "Failed to fetch article")
+			return c.String(http.StatusBadRequest, "Failed to fetch article\n")
 		}
 		return c.JSON(http.StatusOK, articleJson)
 	})
