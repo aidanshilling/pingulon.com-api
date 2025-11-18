@@ -67,23 +67,6 @@ func getArticleById(client *mongo.Client, idStr string, collection string) (json
 		return nil, fmt.Errorf("invalid object id: %w", err)
 	}
 
-	fmt.Printf("DEBUG: DB=%q, Collection=%q\n", coll.Database().Name(), coll.Name())
-	fmt.Printf("DEBUG: idStr=%q len=%d parsedHex=%s\n", idStr, len(idStr), id.Hex())
-
-	var sample bson.M
-	if err := coll.FindOne(context.TODO(), bson.D{}).Decode(&sample); err != nil {
-		fmt.Printf("DEBUG: sample read failed: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: sample _id=%#v (type %T)\n", sample["_id"], sample["_id"])
-	}
-
-	count, err := coll.CountDocuments(context.TODO(), bson.M{"_id": id})
-	if err != nil {
-		fmt.Printf("DEBUG: CountDocuments error: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: CountDocuments for _id=%s -> %d documents\n", id.Hex(), count)
-	}
-
 	var result bson.M
 	err = coll.FindOne(context.TODO(), bson.D{{"_id", id}}).Decode(&result)
 	if err == mongo.ErrNoDocuments {
