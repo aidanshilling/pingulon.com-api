@@ -38,13 +38,56 @@ func obtainMongoClient() (*mongo.Client, error) {
 	return client, nil
 }
 
-func getArticle(client *mongo.Client, name string, collection string) (json.RawMessage, error) {
+func getArticleByName(client *mongo.Client, name string, collection string) (json.RawMessage, error) {
 	coll := client.Database("articles").Collection(collection)
 
 	var result bson.M
 	err := coll.FindOne(context.TODO(), bson.D{{"name", name}}).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		fmt.Printf("No document was found with the name %s\n", name)
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "	")
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonData, nil
+}
+
+func getArticleById(client *mongo.Client, idStr string, collection string) (json.RawMessage, error) {
+	coll := client.Database("articles").Collection(collection)
+
+	id, err := bson.ObjectIDFromHex(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid object id: %w", err)
+	}
+
+	fmt.Printf("DEBUG: DB=%q, Collection=%q\n", coll.Database().Name(), coll.Name())
+	fmt.Printf("DEBUG: idStr=%q len=%d parsedHex=%s\n", idStr, len(idStr), id.Hex())
+
+	var sample bson.M
+	if err := coll.FindOne(context.TODO(), bson.D{}).Decode(&sample); err != nil {
+		fmt.Printf("DEBUG: sample read failed: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: sample _id=%#v (type %T)\n", sample["_id"], sample["_id"])
+	}
+
+	count, err := coll.CountDocuments(context.TODO(), bson.M{"_id": id})
+	if err != nil {
+		fmt.Printf("DEBUG: CountDocuments error: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: CountDocuments for _id=%s -> %d documents\n", id.Hex(), count)
+	}
+
+	var result bson.M
+	err = coll.FindOne(context.TODO(), bson.D{{"_id", id}}).Decode(&result)
+	if err == mongo.ErrNoDocuments {
+		fmt.Printf("No document was found with the id %s\n", id)
 		return nil, err
 	}
 	if err != nil {
@@ -108,10 +151,19 @@ func main() {
 		return c.JSON(http.StatusOK, articles)
 
 	})
-	e.GET("/:collection/:name", func(c echo.Context) error {
+	e.GET("/:collection/name/:name", func(c echo.Context) error {
 		collection := c.Param("collection")
 		name := c.Param("name")
-		articleJson, err := getArticle(mongoClient, name, collection)
+		articleJson, err := getArticleByName(mongoClient, name, collection)
+		if err != nil {
+			return c.String(http.StatusBadRequest, "Failed to fetch article\n")
+		}
+		return c.JSON(http.StatusOK, articleJson)
+	})
+	e.GET("/:collection/id/:id", func(c echo.Context) error {
+		collection := c.Param("collection")
+		id := c.Param("id")
+		articleJson, err := getArticleById(mongoClient, id, collection)
 		if err != nil {
 			return c.String(http.StatusBadRequest, "Failed to fetch article\n")
 		}
